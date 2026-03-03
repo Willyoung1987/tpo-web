@@ -265,7 +265,7 @@ st.markdown("""
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码付款（支持红包/转账）", width=150)
+st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=150)
 
 st.markdown("""
 付款成功后截图发微信：**你的微信号**  
@@ -273,6 +273,7 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信")
+
 
 
 
