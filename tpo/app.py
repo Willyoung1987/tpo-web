@@ -17,7 +17,7 @@ from collections import defaultdict
 import streamlit as st
 
 # Tushare 初始化（使用 secrets 更安全）
-ts.set_token(st.secrets.get("TUSHARE_TOKEN", "bc66f726f32f0a61b3d1f417ca44c9ed81c19e0240e12a53bbdb5773"))
+ts.set_token(st.secrets.get("bc66f726f32f0a61b3d1f417ca44c9ed81c19e0240e12a53bbdb5773"))
 pro = ts.pro_api()
 
 # ───────────── 函数定义（核心逻辑不变） ─────────────
@@ -273,3 +273,4 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信：你的微信号")
+
