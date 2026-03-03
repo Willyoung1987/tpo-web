@@ -180,7 +180,7 @@ if 'unlock_success' not in st.session_state:
     st.session_state.unlock_success = False
 
 # 正确验证码（每天手动修改）
-CORRECT_CODE = "tpo20260303"
+CORRECT_CODE = "tpo20260304"
 
 # ───────────── 主界面 ─────────────
 st.title("日线 TPO 四度空间 生成器")
@@ -273,5 +273,6 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信：你的微信号")
+
 
 
