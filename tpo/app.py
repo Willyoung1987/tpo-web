@@ -17,7 +17,7 @@ from collections import defaultdict
 import streamlit as st
 
 # Tushare 初始化（使用 secrets 更安全）
-ts.set_token('bc66f726f32f0a61b3d1f417ca44c9ed81c19e0240e12a53bbdb5773')
+ts.set_token('tkshr')
 pro = ts.pro_api()
 
 # ───────────── 函数定义（核心逻辑不变） ─────────────
@@ -131,7 +131,7 @@ def plot_market_profile(df, profile, ts_code, start_date, end_date):
     plt.tight_layout()
   
     img_bytes = io.BytesIO()
-    plt.savefig(img_bytes, dpi=600, bbox_inches='tight', format='png')
+    plt.savefig(img_bytes, dpi=200, bbox_inches='tight', format='png')
     img_bytes.seek(0)
     plt.close()
   
@@ -180,7 +180,7 @@ if 'unlock_success' not in st.session_state:
     st.session_state.unlock_success = False
 
 # 正确验证码（每天手动修改）
-CORRECT_CODE = "tpo20260304"
+CORRECT_CODE = "0304"
 
 # ───────────── 主界面 ─────────────
 st.title("日线 TPO 四度空间 生成器")
@@ -272,7 +272,8 @@ st.markdown("""
 我会在几分钟到半小时内给你最新解锁码。
 """)
 
-st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信：你的微信号")
+st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信")
+
 
 
 
