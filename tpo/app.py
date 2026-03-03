@@ -16,11 +16,11 @@ import numpy as np
 from collections import defaultdict
 import streamlit as st
 
-# Tushare 初始化（使用 secrets 更安全）
-ts.set_token('tkshr')
+
+ts.set_token('TUSHARE_TOKEN')
 pro = ts.pro_api()
 
-# ───────────── 函数定义（核心逻辑不变） ─────────────
+
 
 def fetch_stock_data(ts_code, start_date, end_date):
     try:
@@ -172,17 +172,17 @@ def generate_tpo_image(ts_code, start_date, end_date):
     except Exception as e:
         raise RuntimeError(str(e))
 
-# ───────────── 初始化 session_state 用于错误计数 ─────────────
+
 if 'unlock_attempts' not in st.session_state:
     st.session_state.unlock_attempts = 0
 
 if 'unlock_success' not in st.session_state:
     st.session_state.unlock_success = False
 
-# 正确验证码（每天手动修改）
+
 CORRECT_CODE = "0304"
 
-# ───────────── 主界面 ─────────────
+
 st.title("日线 TPO 四度空间 生成器")
 st.caption("专业 Market Profile | POC/VAH/VAL 一键生成高清图 + Excel")
 
@@ -228,7 +228,7 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
             st.error(f"生成失败：{str(e)}")
             st.info("常见原因：日期跨度太长导致图太高 → 尝试缩短日期范围，或联系我优化。")
 
-# ───────────── 解锁码输入区 ─────────────
+
 st.markdown("### 输入解锁码使用工具")
 
 # 如果已成功解锁，显示成功提示并隐藏输入框
@@ -259,13 +259,13 @@ st.markdown("---")
 st.markdown("**未解锁或解锁码过期？**")
 st.markdown("""
 - **单次**：5元 / 次  
-- **包月**：200元 / 30天无限次  
+- **包月**：120元 / 30天无限次  
 
 请微信扫码付款，付款备注：  
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码付款（支持红包/转账）", width=300)
+st.image("tpo/static/QRcode.png", caption="微信扫码付款（支持红包/转账）", width=150)
 
 st.markdown("""
 付款成功后截图发微信：**你的微信号**  
@@ -273,6 +273,7 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信")
+
 
 
 
