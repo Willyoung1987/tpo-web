@@ -97,7 +97,7 @@ def plot_market_profile(df, profile, ts_code, start_date, end_date):
     counts_list = [len(profile[p]) for p in prices_list]
     start_d = df['trade_date'].dt.date.min().strftime('%Y-%m-%d')
     end_d = df['trade_date'].dt.date.max().strftime('%Y-%m-%d')
-    fig = plt.figure(figsize=(18, max(12, len(prices_list) * 0.38)))
+    fig = plt.figure(figsize=(18, max(12, len(prices_list) * 0.2)))
     ax = fig.add_subplot(111)
     bar_height = (prices_list[0] - prices_list[1]) * 0.92 if len(prices_list) > 1 else 0.25
     ax.barh(prices_list, counts_list, color='skyblue', edgecolor='navy', height=bar_height, linewidth=1.1)
@@ -273,6 +273,7 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信：你的微信号")
+
 
 
 
