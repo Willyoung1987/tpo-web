@@ -16,11 +16,11 @@ import numpy as np
 from collections import defaultdict
 import streamlit as st
 
-
+# Tushare 初始化
 ts.set_token('TUSHARE_TOKEN')
 pro = ts.pro_api()
 
-
+# ───────────── 函数定义（核心逻辑不变） ─────────────
 
 def fetch_stock_data(ts_code, start_date, end_date):
     try:
@@ -97,7 +97,7 @@ def plot_market_profile(df, profile, ts_code, start_date, end_date):
     counts_list = [len(profile[p]) for p in prices_list]
     start_d = df['trade_date'].dt.date.min().strftime('%Y-%m-%d')
     end_d = df['trade_date'].dt.date.max().strftime('%Y-%m-%d')
-    fig = plt.figure(figsize=(18, max(12, len(prices_list) * 0.2)))
+    fig = plt.figure(figsize=(18, max(12, len(prices_list) * 0.38)))
     ax = fig.add_subplot(111)
     bar_height = (prices_list[0] - prices_list[1]) * 0.92 if len(prices_list) > 1 else 0.25
     ax.barh(prices_list, counts_list, color='skyblue', edgecolor='navy', height=bar_height, linewidth=1.1)
@@ -131,7 +131,7 @@ def plot_market_profile(df, profile, ts_code, start_date, end_date):
     plt.tight_layout()
   
     img_bytes = io.BytesIO()
-    plt.savefig(img_bytes, dpi=200, bbox_inches='tight', format='png')
+    plt.savefig(img_bytes, dpi=600, bbox_inches='tight', format='png')
     img_bytes.seek(0)
     plt.close()
   
@@ -145,7 +145,7 @@ def export_to_excel(profile, poc, vah, val, ts_code, start_date, end_date):
     data.append(["POC", f"{poc:.2f}" if poc else "N/A"])
     data.append(["VAH", f"{vah:.2f}" if vah else "N/A"])
     data.append(["VAL", f"{val:.2f}" if val else "N/A"])
-    data.append([])
+    data.append([]) 
     data.append(["价格水平", "TPO计数", "出现的字母"])
     sorted_prices = sorted(profile.keys(), reverse=True)
     for p in sorted_prices:
@@ -153,11 +153,11 @@ def export_to_excel(profile, poc, vah, val, ts_code, start_date, end_date):
         letters = ''.join(profile[p])
         data.append([f"{p:.2f}", count, letters])
     df_excel = pd.DataFrame(data)
-   
+    
     excel_bytes = io.BytesIO()
     df_excel.to_excel(excel_bytes, index=False, header=False)
     excel_bytes.seek(0)
-   
+    
     return excel_bytes
 
 def generate_tpo_image(ts_code, start_date, end_date):
@@ -172,17 +172,7 @@ def generate_tpo_image(ts_code, start_date, end_date):
     except Exception as e:
         raise RuntimeError(str(e))
 
-
-if 'unlock_attempts' not in st.session_state:
-    st.session_state.unlock_attempts = 0
-
-if 'unlock_success' not in st.session_state:
-    st.session_state.unlock_success = False
-
-
-CORRECT_CODE = "0304"
-
-
+# ───────────── 主界面 ─────────────
 st.title("日线 TPO 四度空间 生成器")
 st.caption("专业 Market Profile | POC/VAH/VAL 一键生成高清图 + Excel")
 
@@ -190,16 +180,16 @@ code = st.text_input("股票代码", value="000001.SZ", help="示例：600519.SH
 start = st.text_input("开始日期", value="20260101", help="格式 YYYYMMDD")
 end = st.text_input("结束日期", value=datetime.date.today().strftime("%Y%m%d"), help="格式 YYYYMMDD")
 
-# 生成按钮逻辑
 if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
     if not (code.strip() and len(start)==8 and len(end)==8 and start.isdigit() and end.isdigit()):
         st.error("请完整填写代码和日期（8位数字 YYYYMMDD）")
         st.stop()
-    
-    if not st.session_state.unlock_success:
+
+    # 必须有解锁码才能生成
+    if "unlock_code" not in st.session_state or st.session_state.unlock_code.strip() != "tpo20260303":
         st.error("请先输入正确的解锁码才能使用生成功能")
         st.stop()
-    
+
     with st.spinner("获取数据 → 计算TPO → 绘图（可能10-60秒，视日期跨度）..."):
         try:
             img_bytes, poc, vah, val, excel_bytes = generate_tpo_image(code, start, end)
@@ -228,50 +218,33 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
             st.error(f"生成失败：{str(e)}")
             st.info("常见原因：日期跨度太长导致图太高 → 尝试缩短日期范围，或联系我优化。")
 
-
+# 解锁码输入区（现在是必须的入口）
 st.markdown("### 输入解锁码使用工具")
-
-# 如果已成功解锁，显示成功提示并隐藏输入框
-if st.session_state.unlock_success:
-    st.success("✅ 验证码正确，已解锁！现在可以生成 TPO 图了～")
-else:
-    # 显示输入框和按钮（错误次数 < 3）
-    if st.session_state.unlock_attempts < 3:
-        code_input = st.text_input("解锁码", type="password", key="unlock_input")
-        if st.button("验证解锁码"):
-            if code_input.strip() == CORRECT_CODE:
-                st.session_state.unlock_success = True
-                st.session_state.unlock_attempts = 0  # 重置计数
-                st.success("✅ 验证码正确，已解锁！现在可以生成 TPO 图了～")
-                st.rerun()  # 刷新页面，隐藏输入框
-            else:
-                st.session_state.unlock_attempts += 1
-                remaining = 3 - st.session_state.unlock_attempts
-                st.error(f"验证码错误，还剩 {remaining} 次尝试机会。")
+code_input = st.text_input("解锁码", type="password", key="unlock_input")
+if st.button("验证解锁码"):
+    if code_input.strip() == "tpo20260303":  # ← 每天手动修改这个口令
+        st.session_state.unlock_code = code_input.strip()
+        st.success("解锁成功！现在可以生成 TPO 图了～")
+        st.rerun()  # 刷新页面以更新状态
     else:
-        # 错误 3 次，禁用输入
-        st.error("输入错误次数过多，请稍后再试或联系获取正确码。")
-        st.text_input("解锁码", type="password", disabled=True, key="disabled_input")
-        st.button("验证解锁码", disabled=True)
+        st.error("解锁码错误，请联系获取正确码")
 
-# ───────────── 付费引导（始终显示） ─────────────
+# 付费引导（始终显示，帮助获取解锁码）
 st.markdown("---")
 st.markdown("**未解锁或解锁码过期？**")
 st.markdown("""
 - **单次**：5元 / 次  
-- **包月**：120元（首次60元） / 30天无限次  
+- **包月**：200元 / 30天无限次  
 
 请微信扫码付款，付款备注：  
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=150)
+st.image("static/QRcode.png", caption="微信扫码付款（支持红包/转账）", width=300)
 
 st.markdown("""
 付款成功后截图发微信：**你的微信号**  
 我会在几分钟到半小时内给你最新解锁码。
 """)
 
-st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信")
-
-
+st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信：你的微信号")
