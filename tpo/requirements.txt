@@ -16,3 +16,5 @@ openpyxl>=3.1.0
 
 # 指纹生成（MD5）
 # hashlib 是 Python 标准库，无需安装
+
+psycopg2-binary>=2.9.9   # ← 加这一行（推荐！）
