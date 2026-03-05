@@ -222,7 +222,7 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
 st.markdown("### 输入解锁码使用工具")
 code_input = st.text_input("解锁码", type="password", key="unlock_input")
 if st.button("验证解锁码"):
-    if code_input.strip() == "tpo20260303":  # ← 每天手动修改这个口令
+    if code_input.strip() == "0304":  # ← 每天手动修改这个口令
         st.session_state.unlock_code = code_input.strip()
         st.success("解锁成功！现在可以生成 TPO 图了～")
         st.rerun()  # 刷新页面以更新状态
@@ -248,4 +248,5 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信：你的微信号")
+
 
