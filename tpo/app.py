@@ -20,7 +20,7 @@ import streamlit as st
 import psycopg2
 from psycopg2.pool import SimpleConnectionPool
 
-conn = psycopg2.connect(st.secrets["DATABASE_URL"])
+
 # ═══════════════ 数据库配置 ═══════════════
 
 # 从 Streamlit Secrets 读取数据库连接信息
@@ -568,4 +568,5 @@ st.markdown("""
 """)
 
 st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信")
+
 
