@@ -440,7 +440,7 @@ st.markdown("""
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=180)
+st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=150)
 
 st.markdown("""
 付款成功后截图发微信：**你的微信号**  
