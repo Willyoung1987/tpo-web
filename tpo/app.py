@@ -5,8 +5,8 @@ import datetime
 import warnings
 import hashlib
 import io
-import sqlite3
 import json
+from datetime import timedelta
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -17,47 +17,94 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 import streamlit as st
+import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 
-# ═══════════════ 数据库初始化 ═══════════════
-DATABASE_FILE = "tpo_users.db"
+# ═══════════════ 数据库配置 ═══════════════
+
+# 从 Streamlit Secrets 读取数据库连接信息
+DATABASE_URL = st.secrets.get("DATABASE_URL", "")
+
+if not DATABASE_URL:
+    st.error("❌ 缺少 DATABASE_URL 配置！请在 .streamlit/secrets.toml 中添加数据库连接信息")
+    st.stop()
+
+# 创建连接池
+try:
+    db_pool = SimpleConnectionPool(
+        1, 5,  # min 1, max 5 connections
+        DATABASE_URL,
+        sslmode='require'
+    )
+except Exception as e:
+    st.error(f"❌ 数据库连接失败：{str(e)}")
+    st.stop()
+
+def get_db_connection():
+    """获取数据库连接"""
+    return db_pool.getconn()
+
+def return_db_connection(conn):
+    """归还数据库连接"""
+    db_pool.putconn(conn)
 
 def init_database():
-    """初始化SQLite数据库"""
-    conn = sqlite3.connect(DATABASE_FILE)
+    """初始化数据库表"""
+    conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 创建用户试用次数表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_trials (
-            fingerprint TEXT PRIMARY KEY,
-            free_trials INTEGER DEFAULT 1,
-            unlock_success INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_used TIMESTAMP,
-            ip_address TEXT,
-            user_agent TEXT
-        )
-    ''')
-    
-    # 创建使用记录表（防止重复使用）
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usage_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fingerprint TEXT,
-            ts_code TEXT,
-            start_date TEXT,
-            end_date TEXT,
-            used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (fingerprint) REFERENCES user_trials(fingerprint)
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
+    try:
+        # 创建用户试用次数表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_trials (
+                fingerprint TEXT PRIMARY KEY,
+                free_trials INTEGER DEFAULT 1,
+                unlock_success INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used TIMESTAMP,
+                ip_address TEXT,
+                user_agent TEXT
+            )
+        ''')
+        
+        # 创建使用记录表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usage_log (
+                id SERIAL PRIMARY KEY,
+                fingerprint TEXT,
+                ts_code TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (fingerprint) REFERENCES user_trials(fingerprint)
+            )
+        ''')
+        
+        # 创建解锁码表（便于管理）
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS unlock_codes (
+                code TEXT PRIMARY KEY,
+                is_used INTEGER DEFAULT 0,
+                used_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                used_at TIMESTAMP,
+                max_uses INTEGER DEFAULT 1,
+                current_uses INTEGER DEFAULT 0
+            )
+        ''')
+        
+        conn.commit()
+        print("✅ 数据库初始化成功")
+    except Exception as e:
+        st.error(f"❌ 数据库初始化失败：{str(e)}")
+        conn.rollback()
+    finally:
+        return_db_connection(conn)
 
 def get_user_fingerprint():
-    """获取用户指纹（IP + User-Agent哈希）"""
+    """获取用户指纹（IP + User-Agent 哈希）"""
     try:
+        # Streamlit Cloud 使用 X-Forwarded-For 获取真实 IP
         headers = st.context.headers if hasattr(st.context, 'headers') else {}
         ip = headers.get("X-Forwarded-For", "unknown")
         ua = headers.get("User-Agent", "unknown")
@@ -70,99 +117,161 @@ def get_user_fingerprint():
 
 def get_user_trials(fingerprint):
     """从数据库获取用户剩余试用次数"""
-    conn = sqlite3.connect(DATABASE_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT free_trials, unlock_success FROM user_trials WHERE fingerprint = ?', (fingerprint,))
-    result = cursor.fetchone()
-    conn.close()
-    
-    if result:
-        return result[0], bool(result[1])
-    return 1, False
-
-def deduct_free_trial(fingerprint):
-    """扣除一次免费试用"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    # 检查用户是否存在
-    cursor.execute('SELECT free_trials FROM user_trials WHERE fingerprint = ?', (fingerprint,))
-    result = cursor.fetchone()
-    
-    if result is None:
-        # 新用户，初始化为1次
-        fingerprint_obj, ip, ua = get_user_fingerprint()
-        cursor.execute('''
-            INSERT INTO user_trials (fingerprint, free_trials, ip_address, user_agent)
-            VALUES (?, 1, ?, ?)
-        ''', (fingerprint, ip, ua))
-    else:
-        # 扣除一次
-        current_trials = result[0]
-        if current_trials > 0:
-            cursor.execute(
-                'UPDATE user_trials SET free_trials = ?, last_used = CURRENT_TIMESTAMP WHERE fingerprint = ?',
-                (current_trials - 1, fingerprint)
-            )
-        else:
-            conn.close()
-            return False
-    
-    conn.commit()
-    conn.close()
-    return True
-
-def unlock_user(fingerprint):
-    """解锁用户（无限使用）"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM user_trials WHERE fingerprint = ?', (fingerprint,))
-    if cursor.fetchone() is None:
-        fingerprint_obj, ip, ua = get_user_fingerprint()
-        cursor.execute('''
-            INSERT INTO user_trials (fingerprint, unlock_success, ip_address, user_agent)
-            VALUES (?, 1, ?, ?)
-        ''', (fingerprint, ip, ua))
-    else:
+    try:
         cursor.execute(
-            'UPDATE user_trials SET unlock_success = 1 WHERE fingerprint = ?',
+            'SELECT free_trials, unlock_success FROM user_trials WHERE fingerprint = %s',
             (fingerprint,)
         )
-    
-    conn.commit()
-    conn.close()
+        result = cursor.fetchone()
+        
+        if result:
+            return result[0], bool(result[1])
+        return 1, False
+    finally:
+        return_db_connection(conn)
 
-def check_daily_limit(fingerprint, ts_code, start_date, end_date):
-    """检查是否已经生成过相同的图表（防止重复）"""
-    conn = sqlite3.connect(DATABASE_FILE)
+def deduct_free_trial(fingerprint, ip, ua):
+    """扣除一次免费试用"""
+    conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 查询今天是否已生成相同的图表
-    cursor.execute('''
-        SELECT COUNT(*) FROM usage_log 
-        WHERE fingerprint = ? AND ts_code = ? AND start_date = ? AND end_date = ?
-        AND DATE(used_at) = DATE('now')
-    ''', (fingerprint, ts_code, start_date, end_date))
+    try:
+        # 检查用户是否存在
+        cursor.execute(
+            'SELECT free_trials FROM user_trials WHERE fingerprint = %s',
+            (fingerprint,)
+        )
+        result = cursor.fetchone()
+        
+        if result is None:
+            # 新用户，初始化为1次
+            cursor.execute('''
+                INSERT INTO user_trials 
+                (fingerprint, free_trials, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s)
+            ''', (fingerprint, 0, ip, ua))  # 使用后变为0
+        else:
+            # 扣除一次
+            current_trials = result[0]
+            if current_trials > 0:
+                cursor.execute(
+                    'UPDATE user_trials SET free_trials = %s, last_used = CURRENT_TIMESTAMP WHERE fingerprint = %s',
+                    (current_trials - 1, fingerprint)
+                )
+            else:
+                conn.commit()
+                return_db_connection(conn)
+                return False
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"❌ 扣除试用次数失败：{str(e)}")
+        conn.rollback()
+        return False
+    finally:
+        return_db_connection(conn)
+
+def unlock_user(fingerprint, ip, ua, unlock_code=None):
+    """解锁用户（无限使用）"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    count = cursor.fetchone()[0]
-    conn.close()
+    try:
+        cursor.execute(
+            'SELECT * FROM user_trials WHERE fingerprint = %s',
+            (fingerprint,)
+        )
+        
+        if cursor.fetchone() is None:
+            cursor.execute('''
+                INSERT INTO user_trials 
+                (fingerprint, unlock_success, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s)
+            ''', (fingerprint, 1, ip, ua))
+        else:
+            cursor.execute(
+                'UPDATE user_trials SET unlock_success = %s WHERE fingerprint = %s',
+                (1, fingerprint)
+            )
+        
+        # 标记解锁码已使用
+        if unlock_code:
+            cursor.execute(
+                'UPDATE unlock_codes SET is_used = %s, used_by = %s, used_at = CURRENT_TIMESTAMP WHERE code = %s',
+                (1, fingerprint, unlock_code)
+            )
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"❌ 解锁失败：{str(e)}")
+        conn.rollback()
+        return False
+    finally:
+        return_db_connection(conn)
+
+def verify_unlock_code(code):
+    """验证解锁码"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    return count == 0
+    try:
+        cursor.execute(
+            'SELECT is_used, current_uses, max_uses FROM unlock_codes WHERE code = %s',
+            (code,)
+        )
+        result = cursor.fetchone()
+        
+        if result is None:
+            return False, "解锁码不存在"
+        
+        is_used, current_uses, max_uses = result
+        
+        if current_uses >= max_uses:
+            return False, "解锁码已达到使用上限"
+        
+        return True, "验证成功"
+    finally:
+        return_db_connection(conn)
+
+def check_daily_limit(fingerprint, ts_code, start_date, end_date):
+    """检查是否已经生成过相同的图表"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT COUNT(*) FROM usage_log 
+            WHERE fingerprint = %s AND ts_code = %s AND start_date = %s AND end_date = %s
+            AND DATE(used_at) = CURRENT_DATE
+        ''', (fingerprint, ts_code, start_date, end_date))
+        
+        count = cursor.fetchone()[0]
+        return count == 0
+    finally:
+        return_db_connection(conn)
 
 def log_usage(fingerprint, ts_code, start_date, end_date):
     """记录使用日志"""
-    conn = sqlite3.connect(DATABASE_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        INSERT INTO usage_log (fingerprint, ts_code, start_date, end_date)
-        VALUES (?, ?, ?, ?)
-    ''', (fingerprint, ts_code, start_date, end_date))
-    
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute('''
+            INSERT INTO usage_log (fingerprint, ts_code, start_date, end_date)
+            VALUES (%s, %s, %s, %s)
+        ''', (fingerprint, ts_code, start_date, end_date))
+        
+        conn.commit()
+    except Exception as e:
+        st.error(f"❌ 日志记录失败：{str(e)}")
+        conn.rollback()
+    finally:
+        return_db_connection(conn)
 
 # Tushare 初始化
 ts.set_token(st.secrets.get("TUSHARE_TOKEN", "bc66f726f32f0a61b3d1f417ca44c9ed81c19e0240e12a53bbdb5773"))
@@ -333,7 +442,7 @@ if 'unlock_attempts' not in st.session_state:
 if 'unlock_success' not in st.session_state:
     st.session_state.unlock_success = unlock_success
 
-CORRECT_CODE = "0304"  # 每天修改
+CORRECT_CODE = "0304"
 
 # ═══════════════ 主界面 ═══════════════
 st.title("日线 TPO 四度空间 生成器")
@@ -350,7 +459,7 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
 
     # 检查是否已解锁
     if st.session_state.unlock_success:
-        pass  # 已解锁，无限使用
+        pass
     else:
         # 从数据库重新查询剩余次数
         free_trials, _ = get_user_trials(fingerprint)
@@ -366,11 +475,11 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
                 st.stop()
             
             # 扣除试用次数
-            if not deduct_free_trial(fingerprint):
+            if not deduct_free_trial(fingerprint, ip_address, user_agent):
                 st.error("❌ 免费试用次数不足")
                 st.stop()
             
-            st.info(f"✅ 本次为免费试用，使用后剩余 {free_trials - 1} 次（总限1次/设备）")
+            st.info(f"✅ 本次为免费试用，使用后剩余 0 次（总限1次/设备）")
 
     with st.spinner("获取数据 → 计算TPO → 绘图（可能10-60秒）..."):
         try:
@@ -379,12 +488,12 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
             # 记录使用日志
             log_usage(fingerprint, code, start, end)
            
-            st.success(f"生成完成！POC {poc:.2f} | VAH {vah:.2f} | VAL {val:.2f}")
+            st.success(f"✅ 生成完成！POC {poc:.2f} | VAH {vah:.2f} | VAL {val:.2f}")
            
             st.info("图片像素较大，建议直接下载查看（推荐用图片查看器打开）。")
            
             st.download_button(
-                label="下载高清 TPO 图片 (.png)",
+                label="📥 下载高清 TPO 图片 (.png)",
                 data=img_bytes,
                 file_name=f"{start}_{end}_{code}_TPO.png",
                 mime="image/png",
@@ -392,7 +501,7 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
             )
            
             st.download_button(
-                label="下载 Excel 结果 (.xlsx)",
+                label="📊 下载 Excel 结果 (.xlsx)",
                 data=excel_bytes,
                 file_name=f"{start}_{end}_{code}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -400,7 +509,7 @@ if st.button("生成高清 TPO 图", type="primary", use_container_width=True):
             )
        
         except Exception as e:
-            st.error(f"生成失败：{str(e)}")
+            st.error(f"❌ 生成失败：{str(e)}")
             st.info("常见原因：日期跨度太长导致图太高 → 尝试缩短日期范围，或联系我优化。")
 
 # ═══════════════ 解锁码输入区 ═══════════════
@@ -410,24 +519,31 @@ if st.session_state.unlock_success:
     st.success("✅ 验证码正确，已解锁！现在可以无限生成 TPO 图～")
 else:
     if st.session_state.unlock_attempts < 3:
-        code_input = st.text_input("解锁码（可免费试用1次）", value="", type="password", key="unlock_input")
-        if st.button("验证解锁码"):
-            if not code_input.strip():
-                st.warning("请输入解锁码")
-            elif code_input.strip() == CORRECT_CODE:
-                st.session_state.unlock_success = True
-                st.session_state.unlock_attempts = 0
-                unlock_user(fingerprint)  # 保存到数据库
-                st.success("✅ 验证码正确，已解锁！现在可以无限生成 TPO 图～")
-                st.rerun()
-            else:
-                st.session_state.unlock_attempts += 1
-                remaining = 3 - st.session_state.unlock_attempts
-                st.error(f"❌ 验证码错误，还剩 {remaining} 次尝试机会。")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            code_input = st.text_input("解锁码", value="", type="password", key="unlock_input")
+        with col2:
+            if st.button("验证", use_container_width=True):
+                if not code_input.strip():
+                    st.warning("请输入解锁码")
+                else:
+                    # 验证解锁码
+                    is_valid, msg = verify_unlock_code(code_input.strip())
+                    
+                    if is_valid or code_input.strip() == CORRECT_CODE:
+                        st.session_state.unlock_success = True
+                        st.session_state.unlock_attempts = 0
+                        unlock_user(fingerprint, ip_address, user_agent, code_input.strip())
+                        st.success("✅ 验证码正确，已解锁！现在可以无限生成 TPO 图～")
+                        st.rerun()
+                    else:
+                        st.session_state.unlock_attempts += 1
+                        remaining = 3 - st.session_state.unlock_attempts
+                        st.error(f"❌ 验证码错误，还剩 {remaining} 次尝试机会。")
     else:
         st.error("❌ 输入错误次数过多，请稍后再试或联系获取正确码。")
         st.text_input("解锁码", type="password", disabled=True)
-        st.button("验证解锁码", disabled=True)
+        st.button("验证", disabled=True)
 
 # ═══════════════ 付费引导 ═══════════════
 st.markdown("---")
@@ -440,7 +556,10 @@ st.markdown("""
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=150)
+try:
+    st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=150)
+except:
+    st.info("💬 微信号：（请直接在下方输入）")
 
 st.markdown("""
 付款成功后截图发微信：**你的微信号**  
