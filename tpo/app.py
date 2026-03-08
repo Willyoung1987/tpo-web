@@ -271,9 +271,10 @@ st.markdown("""
 我会在几分钟到半小时内给你最新解锁码。
 """)
 
-st.caption("数据直采Tushare | 日线精度高 | 如有疑问加微信")
+st.caption("数据直采Tushare | 日线精度高 | 以下是一个案例")
 
 
 st.image("tpo/static/20260222_20260308_000001.SZ_TPO.png")
+
 
 
