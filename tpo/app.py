@@ -274,5 +274,6 @@ st.markdown("""
 st.caption("数据直采Tushare | 日线精度高 | 如有疑问加微信")
 
 
+st.image("tpo/static/20260222_20260308_000001.SZ_TPO.png")
 
 
