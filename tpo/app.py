@@ -101,8 +101,8 @@ def plot_market_profile(df, profile, ts_code, start_date, end_date):
     ax = fig.add_subplot(111)
     bar_height = (prices_list[0] - prices_list[1]) * 0.92 if len(prices_list) > 1 else 0.25
     ax.barh(prices_list, counts_list, color='skyblue', edgecolor='navy', height=bar_height, linewidth=1.1)
-    ax.set_title(f'日线 四度空间 Market Profile - {ts_code}\n{start_d} ~ {end_d}', fontsize=18, pad=30)
-    ax.set_xlabel('TPO Count（交易日触及次数）', fontsize=14)
+    ax.set_title(f'TPO Market Profile - {ts_code}\n{start_d} ~ {end_d}', fontsize=18, pad=30)
+    ax.set_xlabel('TPO Count（times）', fontsize=14)
     ax.set_ylabel('Price Level', fontsize=14)
     max_count = max(counts_list) if counts_list else 1
     for i, p in enumerate(prices_list):
@@ -183,7 +183,7 @@ if 'unlock_success' not in st.session_state:
 CORRECT_CODE = "0304"
 
 
-st.title("A股唯一在线 TPO Market Profile 生成器")
+st.title("A股唯一在线 TPO 生成器")
 st.caption("专业 Market Profile | POC/VAH/VAL 一键生成高清图 + Excel")
 
 code = st.text_input("股票代码", value="000001.SZ", help="示例：600519.SH 或 000001.SZ")
@@ -272,6 +272,7 @@ st.markdown("""
 """)
 
 st.caption("数据直采Tushare | 日线精度高 | 如有疑问加微信")
+
 
 
 
