@@ -183,7 +183,7 @@ if 'unlock_success' not in st.session_state:
 CORRECT_CODE = "0304"
 
 
-st.title("日线 TPO 四度空间 生成器")
+st.title("A股唯一在线 TPO Market Profile 生成器")
 st.caption("专业 Market Profile | POC/VAH/VAL 一键生成高清图 + Excel")
 
 code = st.text_input("股票代码", value="000001.SZ", help="示例：600519.SH 或 000001.SZ")
@@ -258,19 +258,19 @@ else:
 st.markdown("---")
 st.markdown("**未解锁或解锁码过期？**")
 st.markdown("""
-- **单次**：5元 / 次  
-- **包月**：120元（首次60元） / 30天无限次  
+ 
 
-请微信扫码付款，付款备注：  
+请微信扫码，备注：  
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码加好友（支持红包/转账）", width=150)
+st.image("tpo/static/QRcode.png", caption="微信扫码加好友", width=150)
 
 st.markdown("""
 付款成功后截图发微信：**你的微信号**  
 我会在几分钟到半小时内给你最新解锁码。
 """)
 
-st.caption("数据来源于Tushare | 仅供学习交流 | 如有疑问加微信")
+st.caption("数据直采Tushare | 日线精度高 | 如有疑问加微信")
+
 
