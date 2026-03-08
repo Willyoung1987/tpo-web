@@ -264,13 +264,14 @@ st.markdown("""
 「TPO + 示例股票代码 + 微信昵称」
 """)
 
-st.image("tpo/static/QRcode.png", caption="微信扫码加好友", width=150)
+st.image("tpo/static/QRcode.png", caption="微信扫码加好友", width=180)
 
 st.markdown("""
-付款成功后截图发微信：**你的微信号**  
+ 
 我会在几分钟到半小时内给你最新解锁码。
 """)
 
 st.caption("数据直采Tushare | 日线精度高 | 如有疑问加微信")
+
 
 
