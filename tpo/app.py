@@ -180,7 +180,7 @@ if 'unlock_success' not in st.session_state:
     st.session_state.unlock_success = False
 
 
-CORRECT_CODE = "0304"
+CORRECT_CODE = "0222"
 
 
 st.title("A股唯一在线 TPO 生成器")
@@ -274,6 +274,7 @@ st.markdown("""
  
 我会在几分钟到半小时内给你最新解锁码。
 """)
+
 
 
 
