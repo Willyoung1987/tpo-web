@@ -180,7 +180,7 @@ if 'unlock_success' not in st.session_state:
     st.session_state.unlock_success = False
 
 
-CORRECT_CODE = "0222"
+CORRECT_CODE = "20140520"
 
 
 st.title("A股唯一在线 TPO 生成器")
